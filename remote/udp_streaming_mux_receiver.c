@@ -133,9 +133,9 @@ int main(int argc, char *argv[]) {
     /* https://stackoverflow.com/questions/20497199/gstreamer-source-code-doesnt-work */
     // TODO caps fixed here??? -> cannot mux differenct media type data??? e.g. video + audio + subtitle???
     caps = gst_caps_new_simple ("application/x-rtp",
-            "encoding-name", G_TYPE_STRING, "JPEG",
-            "media", G_TYPE_STRING, "video",
-            "clock-rate", G_TYPE_INT, 90000,
+//            "encoding-name", G_TYPE_STRING, "JPEG",
+//            "media", G_TYPE_STRING, "video",
+//            "clock-rate", G_TYPE_INT, 90000,
             NULL);
     print_caps (caps, "      ");
     g_object_set (data.source, "caps", caps, NULL);
@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
     // TODO pad-added vs new-payload-type
     //g_signal_connect (data.demux, "pad-added", G_CALLBACK (pad_added_handler), &data);
     // not necessory
-    //g_signal_connect (data.demux, "request-pt-map", G_CALLBACK (request_pt_map_handler), &data);
+    g_signal_connect (data.demux, "request-pt-map", G_CALLBACK (request_pt_map_handler), &data);
     g_signal_connect (data.demux, "new-payload-type", G_CALLBACK (new_payload_type_handler), &data);
     // not necessory
     //g_signal_connect (data.demux, "payload-type-change", G_CALLBACK (payload_type_change_handler), &data);
@@ -266,12 +266,13 @@ GstCaps *request_pt_map_handler(GstElement* demux,
         CustomData *data)
 {
     g_print ("%s:%d(%s, %d, data)\n", __func__, __LINE__, GST_OBJECT_NAME(demux), pt);
-//    GstCaps *caps = gst_caps_new_simple ("application/x-rtp",
-//            "encoding-name", G_TYPE_STRING, "JPEG",
-//            "media", G_TYPE_STRING, "video",
-//            NULL);
-//    return caps;
-    return NULL;
+    GstCaps *caps = gst_caps_new_simple ("application/x-rtp",
+            "encoding-name", G_TYPE_STRING, "JPEG",
+            "media", G_TYPE_STRING, "video",
+            "clock-rate", G_TYPE_INT, 90000,
+            NULL);
+    return caps;
+//    return NULL;
 }
 
 void new_payload_type_handler(GstElement* src,

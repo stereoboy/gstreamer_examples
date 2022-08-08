@@ -1,4 +1,8 @@
 #!/bin/sh
+#
+# references
+# - https://stackoverflow.com/questions/35843178/streaming-audio-and-video-in-sync-for-mp4-container-using-gstreamer-framework
+#
 
 # baseline
 #gst-launch-1.0 -v v4l2src device=/dev/video0 !image/jpeg, width=640, height=480, pixel-aspect-ratio=1/1, framerate=30/1 ! rtpjpegpay !\

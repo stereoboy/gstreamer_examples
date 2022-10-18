@@ -1,6 +1,7 @@
 #!/bin/sh
 
 HOST=192.168.0.4
+#HOST=127.0.0.1
 
 v4l2-ctl --list-devices
 
@@ -19,5 +20,5 @@ xterm +hold -title video2 -e \
 xterm +hold -title audio -e \
   gst-launch-1.0 -v pulsesrc device=alsa_input.usb-046d_Logitech_StreamCam_6A86D645-02.analog-stereo !\
   alawenc ! rtpgstpay !\
-  udpsink host=$HOST port=8556 &
+  udpsink host=$HOST port=8556
 

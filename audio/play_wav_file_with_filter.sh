@@ -7,6 +7,12 @@ set -x
 #  autoaudiosink
 
 
+#gst-launch-1.0 -v filesrc location=../data/voice_with_noise.wav ! decodebin ! audioconvert ! audioresample ! \
+#    webrtcdsp ! webrtcechoprobe ! \
+#    audioconvert ! audioresample ! autoaudiosink
+
 gst-launch-1.0 -v filesrc location=../data/voice_with_noise.wav ! decodebin ! audioconvert ! audioresample ! \
-    webrtcdsp ! webrtcechoprobe ! \
-    audioconvert ! audioresample ! autoaudiosink
+  webrtcdsp ! webrtcechoprobe ! \
+  audioconvert ! tee name=t \
+  t. ! queue ! audioresample ! autoaudiosink \
+  t. ! queue ! wavescope ! ximagesink

@@ -26,6 +26,7 @@ docker run  --rm -it \
         --env="DISPLAY=${DISPLAY}" \
         --env QT_X11_NO_MITSHM=1 \
         --device /dev/bus/usb \
+        --device /dev/snd \
         --device-cgroup-rule='c 188:* rmw' \
         --device-cgroup-rule='c 189:* rmw' \
         --device-cgroup-rule='c 81:* rmw' \

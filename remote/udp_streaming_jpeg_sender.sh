@@ -2,6 +2,7 @@
 
 set -x
 
+#HOST=54.193.231.0 # US server
 HOST=127.0.0.1
 PORT=5000
 

@@ -10,6 +10,8 @@ PORT3=5003
 WIDTH=1280
 HEIGHT=720
 
+AUDIO_BUFFER_SIZE=100000
+
 function log_info() {
     echo "[NESFR VR (@TAG@) BootUp] $*"
 }
@@ -65,4 +67,4 @@ init_audio
 gst-launch-1.0 -tv \
     udpsrc port=${PORT0} buffer-size=$((${WIDTH}*${HEIGHT}*3)) caps=application/x-rtp,media=video,encoding-name=JPEG ! rtpjpegdepay !  queue ! jpegparse ! jpegdec ! textoverlay text="remote left" ! autovideosink \
     udpsrc port=${PORT1} buffer-size=$((${WIDTH}*${HEIGHT}*3)) caps=application/x-rtp,media=video,encoding-name=JPEG ! rtpjpegdepay !  queue ! jpegparse ! jpegdec ! textoverlay text="remote right" ! autovideosink \
-    udpsrc port=${PORT2} ! application/x-rtp, media=audio, clock-rate=44100, encoding-name=L16, channels=2, channel-mask=0x0000000000000003 ! rtpL16depay ! pulsesink volume=2.0 device=alsa_output.usb-$audio_dev_id_serial-00.analog-stereo
+    udpsrc port=${PORT2} buffer-size=${AUDIO_BUFFER_SIZE} ! application/x-rtp, media=audio, clock-rate=44100, encoding-name=L16, channels=2, channel-mask=0x0000000000000003 ! rtpL16depay ! pulsesink volume=2.0 device=alsa_output.usb-$audio_dev_id_serial-00.analog-stereo

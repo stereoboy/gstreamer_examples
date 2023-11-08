@@ -18,3 +18,5 @@ PORT3=5011
 gst-launch-1.0 -tv \
     tcpclientsrc host=${RELAY_HOST} port=${RELAY_PORT0} ! application/x-rtp-stream,encoding-name=JPEG ! rtpstreamdepay ! udpsink host=${HOST} port=${PORT0} \
     tcpclientsrc host=${RELAY_HOST} port=${RELAY_PORT1} ! application/x-rtp-stream,encoding-name=JPEG ! rtpstreamdepay ! udpsink host=${HOST} port=${PORT1} \
+    tcpclientsrc host=${RELAY_HOST} port=${RELAY_PORT2} ! application/x-rtp-stream,media=audio, clock-rate=44100, encoding-name=L16, channels=2, channel-mask=0x0000000000000003 ! rtpstreamdepay ! udpsink host=${HOST} port=${PORT2}
+

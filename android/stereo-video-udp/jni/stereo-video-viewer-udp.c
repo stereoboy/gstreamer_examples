@@ -476,9 +476,9 @@ gst_native_init (JNIEnv * env, jobject thiz)
   data->desired_position = GST_CLOCK_TIME_NONE;
   data->last_seek_time = GST_CLOCK_TIME_NONE;
   SET_CUSTOM_DATA (env, thiz, custom_data_field_id, data);
-  GST_DEBUG_CATEGORY_INIT (debug_category, "tutorial-5", 0,
+  GST_DEBUG_CATEGORY_INIT (debug_category, "stereo-video-viewer-udp", 0,
       "Android tutorial 5");
-  gst_debug_set_threshold_for_name ("tutorial-5", GST_LEVEL_DEBUG);
+  gst_debug_set_threshold_for_name ("stereo-video-viewer-udp", GST_LEVEL_DEBUG);
   GST_DEBUG ("Created CustomData at %p", data);
   data->app = (*env)->NewGlobalRef (env, thiz);
   GST_DEBUG ("Created GlobalRef for app object at %p", data->app);
@@ -668,12 +668,12 @@ JNI_OnLoad (JavaVM * vm, void *reserved)
   java_vm = vm;
 
   if ((*vm)->GetEnv (vm, (void **) &env, JNI_VERSION_1_4) != JNI_OK) {
-    __android_log_print (ANDROID_LOG_ERROR, "tutorial-5",
+    __android_log_print (ANDROID_LOG_ERROR, "stereo-video-viewer-udp",
         "Could not retrieve JNIEnv");
     return 0;
   }
   jclass klass = (*env)->FindClass (env,
-      "org/freedesktop/gstreamer/tutorials/tutorial_5/Tutorial5");
+      "org/freedesktop/gstreamer/examples/stereo_video_viewer_udp/StereoVideoViewerUDP");
   (*env)->RegisterNatives (env, klass, native_methods,
       G_N_ELEMENTS (native_methods));
 

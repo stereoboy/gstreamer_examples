@@ -1,4 +1,4 @@
-package org.freedesktop.gstreamer.tutorials.tutorial_5;
+package org.freedesktop.gstreamer.examples.stereo_video_viewer_udp;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -24,9 +24,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import org.freedesktop.gstreamer.GStreamer;
+import org.freedesktop.gstreamer.examples.stereo_video_viewer_udp.R;
+
 import com.lamerman.FileDialog;
 
-public class Tutorial5 extends Activity implements SurfaceHolder.Callback, OnSeekBarChangeListener {
+public class StereoVideoViewerUDP extends Activity implements SurfaceHolder.Callback, OnSeekBarChangeListener {
     private native void nativeInit();     // Initialize native code, build pipeline, etc
     private native void nativeFinalize(); // Destroy pipeline and shutdown native code
     private native void nativeSetUri(String uri); // Set the URI of the media to play
@@ -241,7 +243,7 @@ public class Tutorial5 extends Activity implements SurfaceHolder.Callback, OnSee
 
     static {
         System.loadLibrary("gstreamer_android");
-        System.loadLibrary("tutorial-5");
+        System.loadLibrary("stereo-video-viewer-udp");
         nativeClassInit();
     }
 

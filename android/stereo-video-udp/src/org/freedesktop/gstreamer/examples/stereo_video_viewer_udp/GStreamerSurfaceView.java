@@ -1,4 +1,4 @@
-package org.freedesktop.gstreamer.tutorials.tutorial_5;
+package org.freedesktop.gstreamer.examples.stereo_video_viewer_udp;
 
 import android.content.Context;
 import android.util.AttributeSet;

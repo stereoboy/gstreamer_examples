@@ -17,11 +17,11 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
  * a jlong, which is always 64 bits, without warnings.
  */
 #if GLIB_SIZEOF_VOID_P == 8
-# define GET_CUSTOM_DATA(env, thiz, fieldID) (CustomData *)(*env)->GetLongField (env, thiz, fieldID)
-# define SET_CUSTOM_DATA(env, thiz, fieldID, data) (*env)->SetLongField (env, thiz, fieldID, (jlong)data)
+# define GET_CUSTOM_DATA(env, thiz, fieldID) (CustomData *)env->GetLongField (thiz, fieldID)
+# define SET_CUSTOM_DATA(env, thiz, fieldID, data) env->SetLongField (thiz, fieldID, (jlong)data)
 #else
-# define GET_CUSTOM_DATA(env, thiz, fieldID) (CustomData *)(jint)(*env)->GetLongField (env, thiz, fieldID)
-# define SET_CUSTOM_DATA(env, thiz, fieldID, data) (*env)->SetLongField (env, thiz, fieldID, (jlong)(jint)data)
+# define GET_CUSTOM_DATA(env, thiz, fieldID) (CustomData *)(jint)env->GetLongField (thiz, fieldID)
+# define SET_CUSTOM_DATA(env, thiz, fieldID, data) env->SetLongField (thiz, fieldID, (jlong)(jint)data)
 #endif
 
 /* Do not allow seeks to be performed closer than this distance. It is visually useless, and will probably
@@ -77,7 +77,7 @@ attach_current_thread (void)
   args.name = NULL;
   args.group = NULL;
 
-  if ((*java_vm)->AttachCurrentThread (java_vm, &env, &args) < 0) {
+  if (java_vm->AttachCurrentThread ( &env, &args) < 0) {
     GST_ERROR ("Failed to attach current thread");
     return NULL;
   }
@@ -90,7 +90,7 @@ static void
 detach_current_thread (void *env)
 {
   GST_DEBUG ("Detaching thread %p", g_thread_self ());
-  (*java_vm)->DetachCurrentThread (java_vm);
+  java_vm->DetachCurrentThread ();
 }
 
 /* Retrieve the JNI environment for this thread */
@@ -99,7 +99,7 @@ get_jni_env (void)
 {
   JNIEnv *env;
 
-  if ((env = pthread_getspecific (current_jni_env)) == NULL) {
+  if ((env = (JNIEnv *)pthread_getspecific (current_jni_env)) == NULL) {
     env = attach_current_thread ();
     pthread_setspecific (current_jni_env, env);
   }
@@ -113,13 +113,13 @@ set_ui_message (const gchar * message, CustomData * data)
 {
   JNIEnv *env = get_jni_env ();
   GST_DEBUG ("Setting message to: %s", message);
-  jstring jmessage = (*env)->NewStringUTF (env, message);
-  (*env)->CallVoidMethod (env, data->app, set_message_method_id, jmessage);
-  if ((*env)->ExceptionCheck (env)) {
+  jstring jmessage = env->NewStringUTF (message);
+  env->CallVoidMethod (data->app, set_message_method_id, jmessage);
+  if (env->ExceptionCheck ()) {
     GST_ERROR ("Failed to call Java method");
-    (*env)->ExceptionClear (env);
+    env->ExceptionClear ();
   }
-  (*env)->DeleteLocalRef (env, jmessage);
+  env->DeleteLocalRef (jmessage);
 }
 
 /* Tell the application what is the current position and clip duration */
@@ -127,11 +127,11 @@ static void
 set_current_ui_position (gint position, gint duration, CustomData * data)
 {
   JNIEnv *env = get_jni_env ();
-  (*env)->CallVoidMethod (env, data->app, set_current_position_method_id,
+  env->CallVoidMethod (data->app, set_current_position_method_id,
       position, duration);
-  if ((*env)->ExceptionCheck (env)) {
+  if (env->ExceptionCheck ()) {
     GST_ERROR ("Failed to call Java method");
-    (*env)->ExceptionClear (env);
+    env->ExceptionClear ();
   }
 }
 
@@ -209,7 +209,7 @@ execute_seek (gint64 desired_position, CustomData * data)
         GST_TIME_ARGS (desired_position));
     data->last_seek_time = gst_util_get_timestamp ();
     gst_element_seek_simple (data->pipeline, GST_FORMAT_TIME,
-        GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT, desired_position);
+                             GstSeekFlags(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT), desired_position);
     data->desired_position = GST_CLOCK_TIME_NONE;
   }
 }
@@ -315,11 +315,11 @@ check_media_size (CustomData * data)
     GST_DEBUG ("Media size is %dx%d, notifying application", info.width,
         info.height);
 
-    (*env)->CallVoidMethod (env, data->app, on_media_size_changed_method_id,
+    env->CallVoidMethod (data->app, on_media_size_changed_method_id,
         (jint) info.width, (jint) info.height);
-    if ((*env)->ExceptionCheck (env)) {
+    if (env->ExceptionCheck ()) {
       GST_ERROR ("Failed to call Java method");
-      (*env)->ExceptionClear (env);
+      env->ExceptionClear ();
     }
   }
 
@@ -372,10 +372,10 @@ check_initialization_complete (CustomData * data)
     gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (data->pipeline),
         (guintptr) data->native_window);
 
-    (*env)->CallVoidMethod (env, data->app, on_gstreamer_initialized_method_id);
-    if ((*env)->ExceptionCheck (env)) {
+    env->CallVoidMethod (data->app, on_gstreamer_initialized_method_id);
+    if (env->ExceptionCheck ()) {
       GST_ERROR ("Failed to call Java method");
-      (*env)->ExceptionClear (env);
+      env->ExceptionClear ();
     }
     data->initialized = TRUE;
   }
@@ -480,7 +480,7 @@ gst_native_init (JNIEnv * env, jobject thiz)
       "Android tutorial 5");
   gst_debug_set_threshold_for_name ("stereo-video-viewer-udp", GST_LEVEL_DEBUG);
   GST_DEBUG ("Created CustomData at %p", data);
-  data->app = (*env)->NewGlobalRef (env, thiz);
+  data->app = env->NewGlobalRef (thiz);
   GST_DEBUG ("Created GlobalRef for app object at %p", data->app);
   pthread_create (&gst_app_thread, NULL, &app_function, data);
 }
@@ -497,7 +497,7 @@ gst_native_finalize (JNIEnv * env, jobject thiz)
   GST_DEBUG ("Waiting for thread to finish...");
   pthread_join (gst_app_thread, NULL);
   GST_DEBUG ("Deleting GlobalRef for app object at %p", data->app);
-  (*env)->DeleteGlobalRef (env, data->app);
+  env->DeleteGlobalRef (data->app);
   GST_DEBUG ("Freeing CustomData at %p", data);
   g_free (data);
   SET_CUSTOM_DATA (env, thiz, custom_data_field_id, NULL);
@@ -511,12 +511,12 @@ gst_native_set_uri (JNIEnv * env, jobject thiz, jstring uri)
   CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
   if (!data || !data->pipeline)
     return;
-  const gchar *char_uri = (*env)->GetStringUTFChars (env, uri, NULL);
+  const gchar *char_uri = env->GetStringUTFChars (uri, NULL);
   GST_DEBUG ("Setting URI to %s", char_uri);
   if (data->target_state >= GST_STATE_READY)
     gst_element_set_state (data->pipeline, GST_STATE_READY);
   g_object_set (data->pipeline, "uri", char_uri, NULL);
-  (*env)->ReleaseStringUTFChars (env, uri, char_uri);
+  env->ReleaseStringUTFChars (uri, char_uri);
   data->duration = GST_CLOCK_TIME_NONE;
   data->is_live |=
       (gst_element_set_state (data->pipeline,
@@ -573,15 +573,15 @@ static jboolean
 gst_native_class_init (JNIEnv * env, jclass klass)
 {
   custom_data_field_id =
-      (*env)->GetFieldID (env, klass, "native_custom_data", "J");
+      env->GetFieldID (klass, "native_custom_data", "J");
   set_message_method_id =
-      (*env)->GetMethodID (env, klass, "setMessage", "(Ljava/lang/String;)V");
+      env->GetMethodID (klass, "setMessage", "(Ljava/lang/String;)V");
   set_current_position_method_id =
-      (*env)->GetMethodID (env, klass, "setCurrentPosition", "(II)V");
+      env->GetMethodID (klass, "setCurrentPosition", "(II)V");
   on_gstreamer_initialized_method_id =
-      (*env)->GetMethodID (env, klass, "onGStreamerInitialized", "()V");
+      env->GetMethodID (klass, "onGStreamerInitialized", "()V");
   on_media_size_changed_method_id =
-      (*env)->GetMethodID (env, klass, "onMediaSizeChanged", "(II)V");
+      env->GetMethodID (klass, "onMediaSizeChanged", "(II)V");
 
   if (!custom_data_field_id || !set_message_method_id
       || !on_gstreamer_initialized_method_id || !on_media_size_changed_method_id
@@ -667,14 +667,14 @@ JNI_OnLoad (JavaVM * vm, void *reserved)
 
   java_vm = vm;
 
-  if ((*vm)->GetEnv (vm, (void **) &env, JNI_VERSION_1_4) != JNI_OK) {
+  if (vm->GetEnv ((void **) &env, JNI_VERSION_1_4) != JNI_OK) {
     __android_log_print (ANDROID_LOG_ERROR, "stereo-video-viewer-udp",
         "Could not retrieve JNIEnv");
     return 0;
   }
-  jclass klass = (*env)->FindClass (env,
+  jclass klass = env->FindClass (
       "org/freedesktop/gstreamer/examples/stereo_video_viewer_udp/StereoVideoViewerUDP");
-  (*env)->RegisterNatives (env, klass, native_methods,
+  env->RegisterNatives (klass, native_methods,
       G_N_ELEMENTS (native_methods));
 
   pthread_key_create (&current_jni_env, detach_current_thread);

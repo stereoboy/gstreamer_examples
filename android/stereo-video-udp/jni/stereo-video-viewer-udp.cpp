@@ -29,20 +29,38 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 #define SEEK_MIN_DELAY (500 * GST_MSECOND)
 
 /* Structure to contain all our information, so we can pass it to callbacks */
+#define ID_LEFT    0
+#define ID_RIGHT   1
+#define ID_MAX     2
+
+typedef struct _PipelineData {
+    GstElement *pipeline;
+    gboolean initialized;         /* To avoid informing the UI multiple times about the initialization */
+    GstElement *video_sink;       /* The video sink element which receives XOverlay commands */
+    ANativeWindow *native_window; /* The Android native window where video will be rendered */
+    GstState state;               /* Current pipeline state */
+    GstState target_state;        /* Desired pipeline state, to be set once buffering is complete */
+    gint64 duration;              /* Cached clip duration */
+    gint64 desired_position;      /* Position to seek to, once the pipeline is running */
+    GstClockTime last_seek_time;  /* For seeking overflow prevention (throttling) */
+    gboolean is_live;             /* Live streams do not use buffering */
+} PipelineData;
+
 typedef struct _CustomData
 {
   jobject app;                  /* Application instance, used to call its methods. A global reference is kept. */
-  GstElement *pipeline;         /* The running pipeline */
+//  GstElement *pipeline;         /* The running pipeline */
   GMainContext *context;        /* GLib context used to run the main loop */
   GMainLoop *main_loop;         /* GLib main loop */
-  gboolean initialized;         /* To avoid informing the UI multiple times about the initialization */
-  ANativeWindow *native_window; /* The Android native window where video will be rendered */
-  GstState state;               /* Current pipeline state */
-  GstState target_state;        /* Desired pipeline state, to be set once buffering is complete */
-  gint64 duration;              /* Cached clip duration */
-  gint64 desired_position;      /* Position to seek to, once the pipeline is running */
-  GstClockTime last_seek_time;  /* For seeking overflow prevention (throttling) */
-  gboolean is_live;             /* Live streams do not use buffering */
+//  gboolean initialized;         /* To avoid informing the UI multiple times about the initialization */
+//  ANativeWindow *native_window; /* The Android native window where video will be rendered */
+//  GstState state;               /* Current pipeline state */
+//  GstState target_state;        /* Desired pipeline state, to be set once buffering is complete */
+//  gint64 duration;              /* Cached clip duration */
+//  gint64 desired_position;      /* Position to seek to, once the pipeline is running */
+//  GstClockTime last_seek_time;  /* For seeking overflow prevention (throttling) */
+//  gboolean is_live;             /* Live streams do not use buffering */
+  PipelineData pipeline_array[ID_MAX];
 } CustomData;
 
 /* playbin2 flags */
@@ -144,27 +162,27 @@ refresh_ui (CustomData * data)
   gint64 position;
 
   /* We do not want to update anything unless we have a working pipeline in the PAUSED or PLAYING state */
-  if (!data || !data->pipeline || data->state < GST_STATE_PAUSED)
+  if (!data || !data->pipeline_array[ID_LEFT].pipeline || data->pipeline_array[ID_LEFT].state < GST_STATE_PAUSED)
     return TRUE;
 
   /* If we didn't know it yet, query the stream duration */
-  if (!GST_CLOCK_TIME_IS_VALID (data->duration)) {
-    if (!gst_element_query_duration (data->pipeline, GST_FORMAT_TIME,
-            &data->duration)) {
+  if (!GST_CLOCK_TIME_IS_VALID (data->pipeline_array[ID_LEFT].duration)) {
+    if (!gst_element_query_duration (data->pipeline_array[ID_LEFT].pipeline, GST_FORMAT_TIME,
+            &data->pipeline_array[ID_LEFT].duration)) {
       GST_WARNING
           ("Could not query current duration (normal for still pictures)");
-      data->duration = 0;
+      data->pipeline_array[ID_LEFT].duration = 0;
     }
   }
 
-  if (!gst_element_query_position (data->pipeline, GST_FORMAT_TIME, &position)) {
+  if (!gst_element_query_position (data->pipeline_array[ID_LEFT].pipeline, GST_FORMAT_TIME, &position)) {
     GST_WARNING
         ("Could not query current position (normal for still pictures)");
     position = 0;
   }
 
   /* Java expects these values in milliseconds, and GStreamer provides nanoseconds */
-  set_current_ui_position (position / GST_MSECOND, data->duration / GST_MSECOND,
+  set_current_ui_position (position / GST_MSECOND, data->pipeline_array[ID_LEFT].duration / GST_MSECOND,
       data);
   return TRUE;
 }
@@ -182,13 +200,13 @@ execute_seek (gint64 desired_position, CustomData * data)
   if (desired_position == GST_CLOCK_TIME_NONE)
     return;
 
-  diff = gst_util_get_timestamp () - data->last_seek_time;
+  diff = gst_util_get_timestamp () - data->pipeline_array[ID_LEFT].last_seek_time;
 
-  if (GST_CLOCK_TIME_IS_VALID (data->last_seek_time) && diff < SEEK_MIN_DELAY) {
+  if (GST_CLOCK_TIME_IS_VALID (data->pipeline_array[ID_LEFT].last_seek_time) && diff < SEEK_MIN_DELAY) {
     /* The previous seek was too close, delay this one */
     GSource *timeout_source;
 
-    if (data->desired_position == GST_CLOCK_TIME_NONE) {
+    if (data->pipeline_array[ID_LEFT].desired_position == GST_CLOCK_TIME_NONE) {
       /* There was no previous seek scheduled. Setup a timer for some time in the future */
       timeout_source =
           g_timeout_source_new ((SEEK_MIN_DELAY - diff) / GST_MSECOND);
@@ -199,7 +217,7 @@ execute_seek (gint64 desired_position, CustomData * data)
     }
     /* Update the desired seek position. If multiple petitions are received before it is time
      * to perform a seek, only the last one is remembered. */
-    data->desired_position = desired_position;
+    data->pipeline_array[ID_LEFT].desired_position = desired_position;
     GST_DEBUG ("Throttling seek to %" GST_TIME_FORMAT ", will be in %"
         GST_TIME_FORMAT, GST_TIME_ARGS (desired_position),
         GST_TIME_ARGS (SEEK_MIN_DELAY - diff));
@@ -207,10 +225,10 @@ execute_seek (gint64 desired_position, CustomData * data)
     /* Perform the seek now */
     GST_DEBUG ("Seeking to %" GST_TIME_FORMAT,
         GST_TIME_ARGS (desired_position));
-    data->last_seek_time = gst_util_get_timestamp ();
-    gst_element_seek_simple (data->pipeline, GST_FORMAT_TIME,
+    data->pipeline_array[ID_LEFT].last_seek_time = gst_util_get_timestamp ();
+    gst_element_seek_simple (data->pipeline_array[ID_LEFT].pipeline, GST_FORMAT_TIME,
                              GstSeekFlags(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT), desired_position);
-    data->desired_position = GST_CLOCK_TIME_NONE;
+    data->pipeline_array[ID_LEFT].desired_position = GST_CLOCK_TIME_NONE;
   }
 }
 
@@ -219,14 +237,14 @@ static gboolean
 delayed_seek_cb (CustomData * data)
 {
   GST_DEBUG ("Doing delayed seek to %" GST_TIME_FORMAT,
-      GST_TIME_ARGS (data->desired_position));
-  execute_seek (data->desired_position, data);
+      GST_TIME_ARGS (data->pipeline_array[ID_LEFT].desired_position));
+  execute_seek (data->pipeline_array[ID_LEFT].desired_position, data);
   return FALSE;
 }
 
 /* Retrieve errors from the bus and show them on the UI */
 static void
-error_cb (GstBus * bus, GstMessage * msg, CustomData * data)
+error_cb_left (GstBus * bus, GstMessage * msg, CustomData * data)
 {
   GError *err;
   gchar *debug_info;
@@ -240,144 +258,213 @@ error_cb (GstBus * bus, GstMessage * msg, CustomData * data)
   g_free (debug_info);
   set_ui_message (message_string, data);
   g_free (message_string);
-  data->target_state = GST_STATE_NULL;
-  gst_element_set_state (data->pipeline, GST_STATE_NULL);
+//  data->target_state = GST_STATE_NULL;
+  gst_element_set_state (data->pipeline_array[ID_LEFT].pipeline, GST_STATE_NULL);
+}
+
+/* Retrieve errors from the bus and show them on the UI */
+static void
+error_cb_right (GstBus * bus, GstMessage * msg, CustomData * data)
+{
+  GError *err;
+  gchar *debug_info;
+  gchar *message_string;
+
+  gst_message_parse_error (msg, &err, &debug_info);
+  message_string =
+          g_strdup_printf ("Error received from element %s: %s",
+                           GST_OBJECT_NAME (msg->src), err->message);
+  g_clear_error (&err);
+  g_free (debug_info);
+  set_ui_message (message_string, data);
+  g_free (message_string);
+//  data->target_state = GST_STATE_NULL;
+  gst_element_set_state (data->pipeline_array[ID_RIGHT].pipeline, GST_STATE_NULL);
 }
 
 /* Called when the End Of the Stream is reached. Just move to the beginning of the media and pause. */
 static void
-eos_cb (GstBus * bus, GstMessage * msg, CustomData * data)
+eos_cb_left (GstBus * bus, GstMessage * msg, CustomData * data)
 {
-  data->target_state = GST_STATE_PAUSED;
-  data->is_live |=
-      (gst_element_set_state (data->pipeline,
-          GST_STATE_PAUSED) == GST_STATE_CHANGE_NO_PREROLL);
-  execute_seek (0, data);
+  data->pipeline_array[ID_LEFT].target_state = GST_STATE_PAUSED;
+  data->pipeline_array[ID_LEFT].is_live |=
+          (gst_element_set_state (data->pipeline_array[ID_LEFT].pipeline,
+                                  GST_STATE_PAUSED) == GST_STATE_CHANGE_NO_PREROLL);
+//  execute_seek (0, data);
+}
+
+static void
+eos_cb_right (GstBus * bus, GstMessage * msg, CustomData * data)
+{
+  data->pipeline_array[ID_RIGHT].target_state = GST_STATE_PAUSED;
+  data->pipeline_array[ID_RIGHT].is_live |=
+          (gst_element_set_state (data->pipeline_array[ID_RIGHT].pipeline,
+                                  GST_STATE_PAUSED) == GST_STATE_CHANGE_NO_PREROLL);
+//  execute_seek (0, data);
 }
 
 /* Called when the duration of the media changes. Just mark it as unknown, so we re-query it in the next UI refresh. */
-static void
-duration_cb (GstBus * bus, GstMessage * msg, CustomData * data)
-{
-  data->duration = GST_CLOCK_TIME_NONE;
-}
+//static void
+//duration_cb (GstBus * bus, GstMessage * msg, CustomData * data)
+//{
+//  data->duration = GST_CLOCK_TIME_NONE;
+//}
 
 /* Called when buffering messages are received. We inform the UI about the current buffering level and
  * keep the pipeline paused until 100% buffering is reached. At that point, set the desired state. */
-static void
-buffering_cb (GstBus * bus, GstMessage * msg, CustomData * data)
-{
-  gint percent;
-
-  if (data->is_live)
-    return;
-
-  gst_message_parse_buffering (msg, &percent);
-  if (percent < 100 && data->target_state >= GST_STATE_PAUSED) {
-    gchar *message_string = g_strdup_printf ("Buffering %d%%", percent);
-    gst_element_set_state (data->pipeline, GST_STATE_PAUSED);
-    set_ui_message (message_string, data);
-    g_free (message_string);
-  } else if (data->target_state >= GST_STATE_PLAYING) {
-    gst_element_set_state (data->pipeline, GST_STATE_PLAYING);
-  } else if (data->target_state >= GST_STATE_PAUSED) {
-    set_ui_message ("Buffering complete", data);
-  }
-}
+//static void
+//buffering_cb (GstBus * bus, GstMessage * msg, CustomData * data)
+//{
+//  gint percent;
+//
+//  if (data->is_live)
+//    return;
+//
+//  gst_message_parse_buffering (msg, &percent);
+//  if (percent < 100 && data->target_state >= GST_STATE_PAUSED) {
+//    gchar *message_string = g_strdup_printf ("Buffering %d%%", percent);
+//    gst_element_set_state (data->pipeline, GST_STATE_PAUSED);
+//    set_ui_message (message_string, data);
+//    g_free (message_string);
+//  } else if (data->target_state >= GST_STATE_PLAYING) {
+//    gst_element_set_state (data->pipeline, GST_STATE_PLAYING);
+//  } else if (data->target_state >= GST_STATE_PAUSED) {
+//    set_ui_message ("Buffering complete", data);
+//  }
+//}
 
 /* Called when the clock is lost */
 static void
-clock_lost_cb (GstBus * bus, GstMessage * msg, CustomData * data)
+clock_lost_cb_left (GstBus * bus, GstMessage * msg, CustomData * data)
 {
-  if (data->target_state >= GST_STATE_PLAYING) {
-    gst_element_set_state (data->pipeline, GST_STATE_PAUSED);
-    gst_element_set_state (data->pipeline, GST_STATE_PLAYING);
+  if (data->pipeline_array[ID_LEFT].target_state >= GST_STATE_PLAYING) {
+    gst_element_set_state (data->pipeline_array[ID_LEFT].pipeline, GST_STATE_PAUSED);
+    gst_element_set_state (data->pipeline_array[ID_LEFT].pipeline, GST_STATE_PLAYING);
+  }
+}
+
+static void
+clock_lost_cb_right (GstBus * bus, GstMessage * msg, CustomData * data)
+{
+  if (data->pipeline_array[ID_RIGHT].target_state >= GST_STATE_PLAYING) {
+    gst_element_set_state (data->pipeline_array[ID_RIGHT].pipeline, GST_STATE_PAUSED);
+    gst_element_set_state (data->pipeline_array[ID_RIGHT].pipeline, GST_STATE_PLAYING);
   }
 }
 
 /* Retrieve the video sink's Caps and tell the application about the media size */
-static void
-check_media_size (CustomData * data)
-{
-  JNIEnv *env = get_jni_env ();
-  GstElement *video_sink;
-  GstPad *video_sink_pad;
-  GstCaps *caps;
-  GstVideoInfo info;
+//static void
+//check_media_size (CustomData * data)
+//{
+//  JNIEnv *env = get_jni_env ();
+//  GstElement *video_sink;
+//  GstPad *video_sink_pad;
+//  GstCaps *caps;
+//  GstVideoInfo info;
+//
+//  /* Retrieve the Caps at the entrance of the video sink */
+//  g_object_get (data->pipeline, "video-sink", &video_sink, NULL);
+//  video_sink_pad = gst_element_get_static_pad (video_sink, "sink");
+//  caps = gst_pad_get_current_caps (video_sink_pad);
+//
+//  if (gst_video_info_from_caps (&info, caps)) {
+//    info.width = info.width * info.par_n / info.par_d;
+//    GST_DEBUG ("Media size is %dx%d, notifying application", info.width,
+//        info.height);
+//
+//    env->CallVoidMethod (data->app, on_media_size_changed_method_id,
+//        (jint) info.width, (jint) info.height);
+//    if (env->ExceptionCheck ()) {
+//      GST_ERROR ("Failed to call Java method");
+//      env->ExceptionClear ();
+//    }
+//  }
+//
+//  gst_caps_unref (caps);
+//  gst_object_unref (video_sink_pad);
+//  gst_object_unref (video_sink);
+//}
 
-  /* Retrieve the Caps at the entrance of the video sink */
-  g_object_get (data->pipeline, "video-sink", &video_sink, NULL);
-  video_sink_pad = gst_element_get_static_pad (video_sink, "sink");
-  caps = gst_pad_get_current_caps (video_sink_pad);
-
-  if (gst_video_info_from_caps (&info, caps)) {
-    info.width = info.width * info.par_n / info.par_d;
-    GST_DEBUG ("Media size is %dx%d, notifying application", info.width,
-        info.height);
-
-    env->CallVoidMethod (data->app, on_media_size_changed_method_id,
-        (jint) info.width, (jint) info.height);
-    if (env->ExceptionCheck ()) {
-      GST_ERROR ("Failed to call Java method");
-      env->ExceptionClear ();
-    }
-  }
-
-  gst_caps_unref (caps);
-  gst_object_unref (video_sink_pad);
-  gst_object_unref (video_sink);
-}
+///* Notify UI about pipeline state changes */
+//static void
+//state_changed_cb (GstBus * bus, GstMessage * msg, CustomData * data)
+//{
+//  GstState old_state, new_state, pending_state;
+//  gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
+//  /* Only pay attention to messages coming from the pipeline, not its children */
+//  if (GST_MESSAGE_SRC (msg) == GST_OBJECT (data->pipeline)) {
+//    data->state = new_state;
+//    gchar *message = g_strdup_printf ("State changed to %s",
+//        gst_element_state_get_name (new_state));
+//    set_ui_message (message, data);
+//    g_free (message);
+//
+//    if (new_state == GST_STATE_NULL || new_state == GST_STATE_READY)
+//      data->is_live = FALSE;
+//
+//    /* The Ready to Paused state change is particularly interesting: */
+//    if (old_state == GST_STATE_READY && new_state == GST_STATE_PAUSED) {
+//      /* By now the sink already knows the media size */
+//      check_media_size (data);
+//
+//      /* If there was a scheduled seek, perform it now that we have moved to the Paused state */
+//      if (GST_CLOCK_TIME_IS_VALID (data->desired_position))
+//        execute_seek (data->desired_position, data);
+//    }
+//  }
+//}
 
 /* Notify UI about pipeline state changes */
 static void
-state_changed_cb (GstBus * bus, GstMessage * msg, CustomData * data)
+state_changed_cb_left (GstBus * bus, GstMessage * msg, CustomData * data)
 {
   GstState old_state, new_state, pending_state;
   gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
   /* Only pay attention to messages coming from the pipeline, not its children */
-  if (GST_MESSAGE_SRC (msg) == GST_OBJECT (data->pipeline)) {
-    data->state = new_state;
+  if (GST_MESSAGE_SRC (msg) == GST_OBJECT (data->pipeline_array[ID_LEFT].pipeline)) {
     gchar *message = g_strdup_printf ("State changed to %s",
-        gst_element_state_get_name (new_state));
+                                      gst_element_state_get_name (new_state));
     set_ui_message (message, data);
     g_free (message);
+  }
+}
 
-    if (new_state == GST_STATE_NULL || new_state == GST_STATE_READY)
-      data->is_live = FALSE;
-
-    /* The Ready to Paused state change is particularly interesting: */
-    if (old_state == GST_STATE_READY && new_state == GST_STATE_PAUSED) {
-      /* By now the sink already knows the media size */
-      check_media_size (data);
-
-      /* If there was a scheduled seek, perform it now that we have moved to the Paused state */
-      if (GST_CLOCK_TIME_IS_VALID (data->desired_position))
-        execute_seek (data->desired_position, data);
-    }
+static void
+state_changed_cb_right (GstBus * bus, GstMessage * msg, CustomData * data)
+{
+  GstState old_state, new_state, pending_state;
+  gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
+  /* Only pay attention to messages coming from the pipeline, not its children */
+  if (GST_MESSAGE_SRC (msg) == GST_OBJECT (data->pipeline_array[ID_LEFT].pipeline)) {
+    gchar *message = g_strdup_printf ("State changed to %s",
+                                      gst_element_state_get_name (new_state));
+    set_ui_message (message, data);
+    g_free (message);
   }
 }
 
 /* Check if all conditions are met to report GStreamer as initialized.
  * These conditions will change depending on the application */
 static void
-check_initialization_complete (CustomData * data)
+check_initialization_complete (CustomData * data, int id)
 {
   JNIEnv *env = get_jni_env ();
-  if (!data->initialized && data->native_window && data->main_loop) {
+  if (!data->pipeline_array[id].initialized && data->pipeline_array[id].native_window && data->main_loop) {
     GST_DEBUG
         ("Initialization complete, notifying application. native_window:%p main_loop:%p",
-        data->native_window, data->main_loop);
+        data->pipeline_array[id].native_window, data->main_loop);
 
     /* The main loop is running and we received a native window, inform the sink about it */
-    gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (data->pipeline),
-        (guintptr) data->native_window);
+    gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (data->pipeline_array[id].video_sink),
+        (guintptr) data->pipeline_array[id].native_window);
 
-    env->CallVoidMethod (data->app, on_gstreamer_initialized_method_id);
+    if (id == ID_LEFT)
+      env->CallVoidMethod (data->app, on_gstreamer_initialized_method_id);
     if (env->ExceptionCheck ()) {
       GST_ERROR ("Failed to call Java method");
       env->ExceptionClear ();
     }
-    data->initialized = TRUE;
+    data->pipeline_array[id].initialized = TRUE;
   }
 }
 
@@ -400,55 +487,89 @@ app_function (void *userdata)
   g_main_context_push_thread_default (data->context);
 
   /* Build pipeline */
-  data->pipeline = gst_parse_launch ("playbin", &error);
-  if (error) {
-    gchar *message =
-        g_strdup_printf ("Unable to build pipeline: %s", error->message);
-    g_clear_error (&error);
-    set_ui_message (message, data);
-    g_free (message);
-    return NULL;
+  for (unsigned int i = 0; i < ID_MAX; i++) {
+    data->pipeline_array[i].pipeline =
+            gst_parse_launch("videotestsrc ! warptv ! videoconvert ! autovideosink",
+                             &error);
+    if (error) {
+      gchar *message =
+              g_strdup_printf("Unable to build pipeline for %d: %s", i, error->message);
+      GST_DEBUG("%s", message);
+      g_clear_error(&error);
+      set_ui_message(message, data);
+      g_free(message);
+      return NULL;
+    }
+
+    //  /* Disable subtitles */
+    //  g_object_get (data->pipeline, "flags", &flags, NULL);
+    //  flags &= ~GST_PLAY_FLAG_TEXT;
+    //  g_object_set (data->pipeline, "flags", flags, NULL);
+
+    /* Set the pipeline to READY, so it can already accept a window handle, if we have one */
+    //  data->pipeline_array[ID_LEFT].target_state = GST_STATE_READY;
+    gst_element_set_state(data->pipeline_array[i].pipeline, GST_STATE_READY);
+
+    data->pipeline_array[i].video_sink =
+            gst_bin_get_by_interface (GST_BIN (data->pipeline_array[i].pipeline),
+                                      GST_TYPE_VIDEO_OVERLAY);
+    if (!data->pipeline_array[i].video_sink) {
+      GST_ERROR ("Could not retrieve video sink");
+      return NULL;
+    }
   }
-
-  /* Disable subtitles */
-  g_object_get (data->pipeline, "flags", &flags, NULL);
-  flags &= ~GST_PLAY_FLAG_TEXT;
-  g_object_set (data->pipeline, "flags", flags, NULL);
-
-  /* Set the pipeline to READY, so it can already accept a window handle, if we have one */
-  data->target_state = GST_STATE_READY;
-  gst_element_set_state (data->pipeline, GST_STATE_READY);
-
   /* Instruct the bus to emit signals for each received message, and connect to the interesting signals */
-  bus = gst_element_get_bus (data->pipeline);
-  bus_source = gst_bus_create_watch (bus);
-  g_source_set_callback (bus_source, (GSourceFunc) gst_bus_async_signal_func,
-      NULL, NULL);
-  g_source_attach (bus_source, data->context);
-  g_source_unref (bus_source);
-  g_signal_connect (G_OBJECT (bus), "message::error", (GCallback) error_cb,
-      data);
-  g_signal_connect (G_OBJECT (bus), "message::eos", (GCallback) eos_cb, data);
-  g_signal_connect (G_OBJECT (bus), "message::state-changed",
-      (GCallback) state_changed_cb, data);
-  g_signal_connect (G_OBJECT (bus), "message::duration",
-      (GCallback) duration_cb, data);
-  g_signal_connect (G_OBJECT (bus), "message::buffering",
-      (GCallback) buffering_cb, data);
+  bus = gst_element_get_bus(data->pipeline_array[ID_LEFT].pipeline);
+  bus_source = gst_bus_create_watch(bus);
+  g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func,
+                        NULL, NULL);
+  g_source_attach(bus_source, data->context);
+  g_source_unref(bus_source);
+  g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) error_cb_left,
+                   data);
+  g_signal_connect(G_OBJECT(bus), "message::eos", (GCallback) eos_cb_left, data);
+  g_signal_connect(G_OBJECT(bus), "message::state-changed",
+                   (GCallback) state_changed_cb_left, data);
+  //  g_signal_connect (G_OBJECT (bus), "message::duration",
+  //      (GCallback) duration_cb, data);
+  //  g_signal_connect (G_OBJECT (bus), "message::buffering",
+  //      (GCallback) buffering_cb, data);
   g_signal_connect (G_OBJECT (bus), "message::clock-lost",
-      (GCallback) clock_lost_cb, data);
-  gst_object_unref (bus);
+      (GCallback) clock_lost_cb_left, data);
+  gst_object_unref(bus);
+
+  bus = gst_element_get_bus(data->pipeline_array[ID_RIGHT].pipeline);
+  bus_source = gst_bus_create_watch(bus);
+  g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func,
+                        NULL, NULL);
+  g_source_attach(bus_source, data->context);
+  g_source_unref(bus_source);
+  g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) error_cb_right,
+                   data);
+  g_signal_connect(G_OBJECT(bus), "message::eos", (GCallback) eos_cb_right, data);
+  g_signal_connect(G_OBJECT(bus), "message::state-changed",
+                   (GCallback) state_changed_cb_right, data);
+  //  g_signal_connect (G_OBJECT (bus), "message::duration",
+  //      (GCallback) duration_cb, data);
+  //  g_signal_connect (G_OBJECT (bus), "message::buffering",
+  //      (GCallback) buffering_cb, data);
+  g_signal_connect (G_OBJECT (bus), "message::clock-lost",
+      (GCallback) clock_lost_cb_right, data);
+  gst_object_unref(bus);
+
 
   /* Register a function that GLib will call 4 times per second */
-  timeout_source = g_timeout_source_new (250);
-  g_source_set_callback (timeout_source, (GSourceFunc) refresh_ui, data, NULL);
-  g_source_attach (timeout_source, data->context);
-  g_source_unref (timeout_source);
+  timeout_source = g_timeout_source_new(250);
+  g_source_set_callback(timeout_source, (GSourceFunc) refresh_ui, data, NULL);
+  g_source_attach(timeout_source, data->context);
+  g_source_unref(timeout_source);
 
   /* Create a GLib Main Loop and set it to run */
   GST_DEBUG ("Entering main loop... (CustomData:%p)", data);
   data->main_loop = g_main_loop_new (data->context, FALSE);
-  check_initialization_complete (data);
+  for (unsigned int i = 0; i < ID_MAX; i++) {
+    check_initialization_complete (data, i);
+  }
   g_main_loop_run (data->main_loop);
   GST_DEBUG ("Exited main loop");
   g_main_loop_unref (data->main_loop);
@@ -457,10 +578,12 @@ app_function (void *userdata)
   /* Free resources */
   g_main_context_pop_thread_default (data->context);
   g_main_context_unref (data->context);
-  data->target_state = GST_STATE_NULL;
-  gst_element_set_state (data->pipeline, GST_STATE_NULL);
-  gst_object_unref (data->pipeline);
-
+//  data->target_state = GST_STATE_NULL;
+  for (unsigned int i = 0; i < ID_MAX; i++) {
+    gst_element_set_state(data->pipeline_array[i].pipeline, GST_STATE_NULL);
+    gst_object_unref (data->pipeline_array[i].video_sink);
+    gst_object_unref (data->pipeline_array[i].pipeline);
+  }
   return NULL;
 }
 
@@ -473,8 +596,10 @@ static void
 gst_native_init (JNIEnv * env, jobject thiz)
 {
   CustomData *data = g_new0 (CustomData, 1);
-  data->desired_position = GST_CLOCK_TIME_NONE;
-  data->last_seek_time = GST_CLOCK_TIME_NONE;
+  for (unsigned int i = 0; i < ID_MAX; i++) {
+    data->pipeline_array[i].desired_position = GST_CLOCK_TIME_NONE;
+    data->pipeline_array[i].last_seek_time = GST_CLOCK_TIME_NONE;
+  }
   SET_CUSTOM_DATA (env, thiz, custom_data_field_id, data);
   GST_DEBUG_CATEGORY_INIT (debug_category, "stereo-video-viewer-udp", 0,
       "Android tutorial 5");
@@ -508,19 +633,19 @@ gst_native_finalize (JNIEnv * env, jobject thiz)
 void
 gst_native_set_uri (JNIEnv * env, jobject thiz, jstring uri)
 {
-  CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
-  if (!data || !data->pipeline)
-    return;
-  const gchar *char_uri = env->GetStringUTFChars (uri, NULL);
-  GST_DEBUG ("Setting URI to %s", char_uri);
-  if (data->target_state >= GST_STATE_READY)
-    gst_element_set_state (data->pipeline, GST_STATE_READY);
-  g_object_set (data->pipeline, "uri", char_uri, NULL);
-  env->ReleaseStringUTFChars (uri, char_uri);
-  data->duration = GST_CLOCK_TIME_NONE;
-  data->is_live |=
-      (gst_element_set_state (data->pipeline,
-          data->target_state) == GST_STATE_CHANGE_NO_PREROLL);
+//  CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
+//  if (!data || !data->pipeline)
+//    return;
+//  const gchar *char_uri = env->GetStringUTFChars (uri, NULL);
+//  GST_DEBUG ("Setting URI to %s", char_uri);
+//  if (data->target_state >= GST_STATE_READY)
+//    gst_element_set_state (data->pipeline, GST_STATE_READY);
+//  g_object_set (data->pipeline, "uri", char_uri, NULL);
+//  env->ReleaseStringUTFChars (uri, char_uri);
+//  data->duration = GST_CLOCK_TIME_NONE;
+//  data->is_live |=
+//      (gst_element_set_state (data->pipeline,
+//          data->target_state) == GST_STATE_CHANGE_NO_PREROLL);
 }
 
 /* Set pipeline to PLAYING state */
@@ -531,10 +656,12 @@ gst_native_play (JNIEnv * env, jobject thiz)
   if (!data)
     return;
   GST_DEBUG ("Setting state to PLAYING");
-  data->target_state = GST_STATE_PLAYING;
-  data->is_live |=
-      (gst_element_set_state (data->pipeline,
-          GST_STATE_PLAYING) == GST_STATE_CHANGE_NO_PREROLL);
+  for (unsigned int i = 0; i < ID_MAX; i++) {
+    data->pipeline_array[i].target_state = GST_STATE_PLAYING;
+    data->pipeline_array[i].is_live |=
+            (gst_element_set_state (data->pipeline_array[i].pipeline,
+                                    GST_STATE_PLAYING) == GST_STATE_CHANGE_NO_PREROLL);
+  }
 }
 
 /* Set pipeline to PAUSED state */
@@ -545,27 +672,29 @@ gst_native_pause (JNIEnv * env, jobject thiz)
   if (!data)
     return;
   GST_DEBUG ("Setting state to PAUSED");
-  data->target_state = GST_STATE_PAUSED;
-  data->is_live |=
-      (gst_element_set_state (data->pipeline,
-          GST_STATE_PAUSED) == GST_STATE_CHANGE_NO_PREROLL);
+  for (unsigned int i = 0; i < ID_MAX; i++) {
+    data->pipeline_array[i].target_state = GST_STATE_PAUSED;
+    data->pipeline_array[i].is_live |=
+            (gst_element_set_state(data->pipeline_array[i].pipeline,
+                                   GST_STATE_PAUSED) == GST_STATE_CHANGE_NO_PREROLL);
+  }
 }
 
 /* Instruct the pipeline to seek to a different position */
 void
 gst_native_set_position (JNIEnv * env, jobject thiz, int milliseconds)
 {
-  CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
-  if (!data)
-    return;
-  gint64 desired_position = (gint64) (milliseconds * GST_MSECOND);
-  if (data->state >= GST_STATE_PAUSED) {
-    execute_seek (desired_position, data);
-  } else {
-    GST_DEBUG ("Scheduling seek to %" GST_TIME_FORMAT " for later",
-        GST_TIME_ARGS (desired_position));
-    data->desired_position = desired_position;
-  }
+//  CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
+//  if (!data)
+//    return;
+//  gint64 desired_position = (gint64) (milliseconds * GST_MSECOND);
+//  if (data->state >= GST_STATE_PAUSED) {
+//    execute_seek (desired_position, data);
+//  } else {
+//    GST_DEBUG ("Scheduling seek to %" GST_TIME_FORMAT " for later",
+//        GST_TIME_ARGS (desired_position));
+//    data->desired_position = desired_position;
+//  }
 }
 
 /* Static class initializer: retrieve method and field IDs */
@@ -597,55 +726,67 @@ gst_native_class_init (JNIEnv * env, jclass klass)
 }
 
 static void
-gst_native_surface_init (JNIEnv * env, jobject thiz, jobject surface)
+gst_native_surface_init (JNIEnv * env, jobject thiz, jobject surface, int id)
 {
   CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
   if (!data)
     return;
+  /*
+   * reference: https://developer.android.com/ndk/reference/group/native-activity#anativewindow_fromsurface
+   * Return the ANativeWindow associated with a Java Surface object, for interacting with it through native code.
+   * This acquires a reference on the ANativeWindow that is returned; be sure to use ANativeWindow_release() when done with it so that it doesn't leak.
+   */
   ANativeWindow *new_native_window = ANativeWindow_fromSurface (env, surface);
   GST_DEBUG ("Received surface %p (native window %p)", surface,
       new_native_window);
 
-  if (data->native_window) {
-    ANativeWindow_release (data->native_window);
-    if (data->native_window == new_native_window) {
+  PipelineData &pipelineData = data->pipeline_array[id];
+
+  if (pipelineData.native_window) {
+    ANativeWindow_release (pipelineData.native_window);
+    if (pipelineData.native_window == new_native_window) {
       GST_DEBUG ("New native window is the same as the previous one %p",
-          data->native_window);
-      if (data->pipeline) {
-        gst_video_overlay_expose (GST_VIDEO_OVERLAY (data->pipeline));
-        gst_video_overlay_expose (GST_VIDEO_OVERLAY (data->pipeline));
+                 pipelineData.native_window);
+      if (pipelineData.video_sink) {
+        gst_video_overlay_expose (GST_VIDEO_OVERLAY (pipelineData.video_sink));
+        gst_video_overlay_expose (GST_VIDEO_OVERLAY (pipelineData.video_sink));
       }
       return;
     } else {
-      GST_DEBUG ("Released previous native window %p", data->native_window);
-      data->initialized = FALSE;
+      GST_DEBUG ("Released previous native window %p", pipelineData.native_window);
+      pipelineData.initialized = FALSE;
     }
   }
-  data->native_window = new_native_window;
+  pipelineData.native_window = new_native_window;
 
-  check_initialization_complete (data);
+  check_initialization_complete (data, id);
 }
 
 static void
-gst_native_surface_finalize (JNIEnv * env, jobject thiz)
+gst_native_surface_finalize (JNIEnv * env, jobject thiz, int id)
 {
   CustomData *data = GET_CUSTOM_DATA (env, thiz, custom_data_field_id);
   if (!data)
     return;
-  GST_DEBUG ("Releasing Native Window %p", data->native_window);
+  PipelineData &pipelineData = data->pipeline_array[id];
+  GST_DEBUG ("Releasing Native Window %p", pipelineData.native_window);
 
-  if (data->pipeline) {
-    gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (data->pipeline),
+  if (pipelineData.video_sink) {
+    gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (pipelineData.video_sink),
         (guintptr) NULL);
-    gst_element_set_state (data->pipeline, GST_STATE_READY);
+    gst_element_set_state (pipelineData.pipeline, GST_STATE_READY);
   }
 
-  ANativeWindow_release (data->native_window);
-  data->native_window = NULL;
-  data->initialized = FALSE;
+  ANativeWindow_release (pipelineData.native_window);
+  pipelineData.native_window = NULL;
+  pipelineData.initialized = FALSE;
 }
 
 /* List of implemented native methods */
+
+/*
+ * reference: https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/types.html
+ */
 static JNINativeMethod native_methods[] = {
   {"nativeInit", "()V", (void *) gst_native_init},
   {"nativeFinalize", "()V", (void *) gst_native_finalize},
@@ -653,9 +794,9 @@ static JNINativeMethod native_methods[] = {
   {"nativePlay", "()V", (void *) gst_native_play},
   {"nativePause", "()V", (void *) gst_native_pause},
   {"nativeSetPosition", "(I)V", (void *) gst_native_set_position},
-  {"nativeSurfaceInit", "(Ljava/lang/Object;)V",
+  {"nativeSurfaceInit", "(Ljava/lang/Object;I)V",
       (void *) gst_native_surface_init},
-  {"nativeSurfaceFinalize", "()V", (void *) gst_native_surface_finalize},
+  {"nativeSurfaceFinalize", "(I)V", (void *) gst_native_surface_finalize},
   {"nativeClassInit", "()Z", (void *) gst_native_class_init}
 };
 

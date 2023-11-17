@@ -28,7 +28,7 @@ import org.freedesktop.gstreamer.examples.stereo_video_viewer_udp.R;
 
 import com.lamerman.FileDialog;
 
-public class StereoVideoViewerUDP extends Activity implements SurfaceHolder.Callback, OnSeekBarChangeListener {
+public class StereoVideoViewerUDP extends Activity implements OnSeekBarChangeListener {
     private native void nativeInit();     // Initialize native code, build pipeline, etc
     private native void nativeFinalize(); // Destroy pipeline and shutdown native code
     private native void nativeSetUri(String uri); // Set the URI of the media to play
@@ -36,8 +36,8 @@ public class StereoVideoViewerUDP extends Activity implements SurfaceHolder.Call
     private native void nativeSetPosition(int milliseconds); // Seek to the indicated position, in milliseconds
     private native void nativePause();    // Set pipeline to PAUSED
     private static native boolean nativeClassInit(); // Initialize native class: cache Method IDs for callbacks
-    private native void nativeSurfaceInit(Object surface); // A new surface is available
-    private native void nativeSurfaceFinalize(); // Surface about to be destroyed
+    private native void nativeSurfaceInit(Object surface, int id); // A new surface is available
+    private native void nativeSurfaceFinalize(int id); // Surface about to be destroyed
     private long native_custom_data;      // Native code will use this to keep private data
 
     private boolean is_playing_desired;   // Whether the user asked to go to PLAYING
@@ -49,6 +49,8 @@ public class StereoVideoViewerUDP extends Activity implements SurfaceHolder.Call
 
     private final String defaultMediaUri = "https://www.freedesktop.org/software/gstreamer-sdk/data/media/sintel_trailer-480p.ogv";
 
+    static private final int LEFT = 0;
+    static private final int RIGHT = 1;
     static private final int PICK_FILE_CODE = 1;
     private String last_folder;
 
@@ -105,7 +107,50 @@ public class StereoVideoViewerUDP extends Activity implements SurfaceHolder.Call
 
         SurfaceView sv = (SurfaceView) this.findViewById(R.id.surface_video);
         SurfaceHolder sh = sv.getHolder();
-        sh.addCallback(this);
+//        sh.addCallback(this);
+        sh.addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder surfaceHolder) {
+                Log.d("GStreamer", "Surface created: " + surfaceHolder.getSurface());
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder surfaceHolder, int format, int width, int height) {
+                Log.d("GStreamer", "Surface changed to format " + format + " width "
+                        + width + " height " + height);
+                nativeSurfaceInit (surfaceHolder.getSurface(), LEFT);
+
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
+                Log.d("GStreamer", "Surface destroyed");
+                nativeSurfaceFinalize (LEFT);
+            }
+        });
+
+        SurfaceView sv2 = (SurfaceView) this.findViewById(R.id.surface_video2);
+        SurfaceHolder sh2 = sv2.getHolder();
+//        sh.addCallback(this);
+        sh2.addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder surfaceHolder) {
+                Log.d("GStreamer", "Surface created: " + surfaceHolder.getSurface());
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder surfaceHolder, int format, int width, int height) {
+                Log.d("GStreamer", "Surface changed to format " + format + " width "
+                        + width + " height " + height);
+                nativeSurfaceInit (surfaceHolder.getSurface(), RIGHT);
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
+                Log.d("GStreamer", "Surface destroyed");
+                nativeSurfaceFinalize (RIGHT);
+            }
+        });
 
         SeekBar sb = (SeekBar) this.findViewById(R.id.seek_bar);
         sb.setOnSeekBarChangeListener(this);
@@ -247,21 +292,21 @@ public class StereoVideoViewerUDP extends Activity implements SurfaceHolder.Call
         nativeClassInit();
     }
 
-    public void surfaceChanged(SurfaceHolder holder, int format, int width,
-            int height) {
-        Log.d("GStreamer", "Surface changed to format " + format + " width "
-                + width + " height " + height);
-        nativeSurfaceInit (holder.getSurface());
-    }
-
-    public void surfaceCreated(SurfaceHolder holder) {
-        Log.d("GStreamer", "Surface created: " + holder.getSurface());
-    }
-
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        Log.d("GStreamer", "Surface destroyed");
-        nativeSurfaceFinalize ();
-    }
+//    public void surfaceChanged(SurfaceHolder holder, int format, int width,
+//            int height) {
+//        Log.d("GStreamer", "Surface changed to format " + format + " width "
+//                + width + " height " + height);
+//        nativeSurfaceInit (holder.getSurface());
+//    }
+//
+//    public void surfaceCreated(SurfaceHolder holder) {
+//        Log.d("GStreamer", "Surface created: " + holder.getSurface());
+//    }
+//
+//    public void surfaceDestroyed(SurfaceHolder holder) {
+//        Log.d("GStreamer", "Surface destroyed");
+//        nativeSurfaceFinalize ();
+//    }
 
     // Called from native code when the size of the media changes or is first detected.
     // Inform the video surface about the new size and recalculate the layout.

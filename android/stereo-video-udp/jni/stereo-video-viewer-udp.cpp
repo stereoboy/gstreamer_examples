@@ -493,6 +493,7 @@ app_function (void *userdata)
   };
   for (unsigned int i = 0; i < ID_MAX; i++) {
     data->pipeline_array[i].pipeline =
+//            gst_parse_launch("videotestsrc ! warptv ! videoconvert ! autovideosink",
             gst_parse_launch(launch_str[i],
                              &error);
     if (error) {

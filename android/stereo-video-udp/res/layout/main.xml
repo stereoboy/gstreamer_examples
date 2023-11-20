@@ -75,14 +75,16 @@
 
         <org.freedesktop.gstreamer.examples.stereo_video_viewer_udp.GStreamerSurfaceView
             android:id="@+id/surface_video"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
             android:layout_gravity="center_vertical|center_horizontal" />
 
         <org.freedesktop.gstreamer.examples.stereo_video_viewer_udp.GStreamerSurfaceView
             android:id="@+id/surface_video2"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:layout_weight="1"
             android:layout_gravity="center_vertical|center_horizontal" />
 
     </LinearLayout>

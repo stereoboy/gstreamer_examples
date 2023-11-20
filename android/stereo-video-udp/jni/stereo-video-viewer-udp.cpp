@@ -487,9 +487,13 @@ app_function (void *userdata)
   g_main_context_push_thread_default (data->context);
 
   /* Build pipeline */
+  gchar *launch_str[ID_MAX] = {
+          "udpsrc port=5000 buffer-size=2764800 caps=application/x-rtp,media=video,encoding-name=JPEG ! rtpjpegdepay !  queue ! jpegparse ! jpegdec ! textoverlay text=\"remote left\" ! autovideosink",
+          "udpsrc port=5001 buffer-size=2764800 caps=application/x-rtp,media=video,encoding-name=JPEG ! rtpjpegdepay !  queue ! jpegparse ! jpegdec ! textoverlay text=\"remote right\" ! autovideosink"
+  };
   for (unsigned int i = 0; i < ID_MAX; i++) {
     data->pipeline_array[i].pipeline =
-            gst_parse_launch("videotestsrc ! warptv ! videoconvert ! autovideosink",
+            gst_parse_launch(launch_str[i],
                              &error);
     if (error) {
       gchar *message =

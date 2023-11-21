@@ -14,9 +14,9 @@ HEIGHT=720
 FRAMERATE=30/1
 
 gst-launch-1.0 -tv \
-    v4l2src device=${DEVICE0} ! image/jpeg, width=${WIDTH}, height=${HEIGHT}, pixel-aspect-ratio=1/1, framerate=${FRAMERATE} ! jpegdec ! timeoverlay ! tee name=t0 \
+    v4l2src device=${DEVICE0} ! image/jpeg, width=${WIDTH}, height=${HEIGHT}, pixel-aspect-ratio=1/1, framerate=${FRAMERATE} ! jpegdec ! timeoverlay ! textoverlay text="${WIDTH}&#215;${HEIGHT}" valignment=top halignment=right ! tee name=t0 \
     t0. ! queue ! jpegenc ! rtpjpegpay ! udpsink host=${HOST} port=${PORT0} \
     t0. ! queue ! textoverlay text="local left" ! autovideosink \
-    v4l2src device=${DEVICE1} ! image/jpeg, width=${WIDTH}, height=${HEIGHT}, pixel-aspect-ratio=1/1, framerate=${FRAMERATE} ! jpegdec ! timeoverlay ! tee name=t1 \
+    v4l2src device=${DEVICE1} ! image/jpeg, width=${WIDTH}, height=${HEIGHT}, pixel-aspect-ratio=1/1, framerate=${FRAMERATE} ! jpegdec ! timeoverlay ! textoverlay text="${WIDTH}&#215;${HEIGHT}" valignment=top halignment=right ! tee name=t1 \
     t1. ! queue ! jpegenc ! rtpjpegpay ! udpsink host=${HOST} port=${PORT1} \
     t1. ! queue ! textoverlay text="local right" ! autovideosink

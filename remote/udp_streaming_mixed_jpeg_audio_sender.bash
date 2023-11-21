@@ -63,10 +63,10 @@ function init_audio() {
 init_audio
 
 gst-launch-1.0 -tv \
-    v4l2src device=${DEVICE0} ! image/jpeg, width=${WIDTH}, height=${HEIGHT}, pixel-aspect-ratio=1/1, framerate=${FRAMERATE} ! jpegdec ! timeoverlay ! tee name=t0 \
+    v4l2src device=${DEVICE0} ! image/jpeg, width=${WIDTH}, height=${HEIGHT}, pixel-aspect-ratio=1/1, framerate=${FRAMERATE} ! jpegdec ! timeoverlay ! textoverlay text="${WIDTH}&#215;${HEIGHT}" valignment=top halignment=right ! tee name=t0 \
     t0. ! queue ! jpegenc ! rtpjpegpay ! udpsink host=${HOST} port=${PORT0} \
     t0. ! queue ! textoverlay text="local left" ! autovideosink \
-    v4l2src device=${DEVICE1} ! image/jpeg, width=${WIDTH}, height=${HEIGHT}, pixel-aspect-ratio=1/1, framerate=${FRAMERATE} ! jpegdec ! timeoverlay ! tee name=t1 \
+    v4l2src device=${DEVICE1} ! image/jpeg, width=${WIDTH}, height=${HEIGHT}, pixel-aspect-ratio=1/1, framerate=${FRAMERATE} ! jpegdec ! timeoverlay ! textoverlay text="${WIDTH}&#215;${HEIGHT}" valignment=top halignment=right ! tee name=t1 \
     t1. ! queue ! jpegenc ! rtpjpegpay ! udpsink host=${HOST} port=${PORT1} \
     t1. ! queue ! textoverlay text="local right" ! autovideosink \
     pulsesrc volume=2.0 device=alsa_input.usb-$audio_dev_id_serial-00.analog-stereo ! audioconvert ! audiochebband mode=band-pass lower-frequency=500 upper-frequency=5000 ! audioconvert ! rtpL16pay ! udpsink host=${HOST} port=${PORT2} \

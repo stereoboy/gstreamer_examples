@@ -90,10 +90,10 @@ def build_video_pipeline(hostname, port):
     FRAMERATE='30/1'
 
     stereo_video_pipeline = Gst.parse_launch(
-        f"v4l2src device={DEVICE0} ! image/jpeg, width={WIDTH}, height={HEIGHT}, pixel-aspect-ratio=1/1, framerate={FRAMERATE} ! jpegdec ! timeoverlay ! tee name=t0 \
+        f"v4l2src device={DEVICE0} ! image/jpeg, width={WIDTH}, height={HEIGHT}, pixel-aspect-ratio=1/1, framerate={FRAMERATE} ! jpegdec ! timeoverlay ! textoverlay text={WIDTH}&#215;{HEIGHT} valignment=top halignment=right ! tee name=t0 \
         t0. ! queue ! jpegenc ! rtpjpegpay ! udpsink host={hostname} port={port} \
         t0. ! queue ! textoverlay text='local left' ! autovideosink \
-        v4l2src device={DEVICE1} ! image/jpeg, width={WIDTH}, height={HEIGHT}, pixel-aspect-ratio=1/1, framerate={FRAMERATE} ! jpegdec ! timeoverlay ! tee name=t1 \
+        v4l2src device={DEVICE1} ! image/jpeg, width={WIDTH}, height={HEIGHT}, pixel-aspect-ratio=1/1, framerate={FRAMERATE} ! jpegdec ! timeoverlay ! textoverlay text={WIDTH}&#215;{HEIGHT} valignment=top halignment=right ! tee name=t1 \
         t1. ! queue ! jpegenc ! rtpjpegpay ! udpsink host={hostname} port={port + 1} \
         t1. ! queue ! textoverlay text='local right' ! autovideosink"
         )

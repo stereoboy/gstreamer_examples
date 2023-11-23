@@ -15,7 +15,6 @@ import time
 import argparse
 import logging
 import numpy as np
-import cv2
 import threading
 
 import gi
@@ -59,33 +58,6 @@ class DrawingArea(Gtk.DrawingArea):
         self.connect("draw", self.on_draw)
 
         self.pixmap = np.zeros((height, width, DEFAULT_BPP), dtype=np.uint8)
-
-    #     # GStreamer pipeline
-    #     self.pipeline = Gst.parse_launch(f"v4l2src device=/dev/video0 ! image/jpeg,width={width},height={height} ! jpegdec  ! videoconvert ! videoscale ! video/x-raw,width={width},height={height},format=(string)BGRA ! appsink name=sink")
-
-    #     # Get the appsink element
-    #     self.appsink = self.pipeline.get_by_name("sink")
-    #     self.appsink.set_property("emit-signals", True)
-    #     self.appsink.connect("new-sample", self.on_new_sample)
-
-    # def start_pipeline(self):
-    #     self.pipeline.set_state(Gst.State.PLAYING)
-
-    # def on_new_sample(self, appsink):
-    #     sample = appsink.emit("pull-sample")
-    #     buffer = sample.get_buffer()
-
-    #     success, map_info = buffer.map(Gst.MapFlags.READ)
-    #     if success:
-    #         data = np.ndarray(shape=(self.bitmap.shape[0], self.bitmap.shape[1], 4),
-    #                           dtype=np.uint8, buffer=map_info.data)
-    #         np.copyto(self.bitmap, data)
-    #         buffer.unmap(map_info)
-
-    #     # Schedule a draw
-    #     GLib.idle_add(self.queue_draw)
-
-    #     return Gst.FlowReturn.OK
 
     def on_draw(self, widget, cr):
         # logging.info("on_draw")
@@ -251,7 +223,6 @@ class Viewer(object):
         finally:
             # Gtk.main_quit()
             pass
-
 
 def main():
     logging.info('input arguments: {}'.format(sys.argv))

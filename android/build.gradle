@@ -21,5 +21,22 @@ allprojects {
 }
 
 task clean(type: Delete) {
+    it.logger.lifecycle('task clean defined')
     delete rootProject.buildDir
+    subprojects.each {
+        //
+        // reference: https://stackoverflow.com/questions/40878923/in-gradle-how-to-print-out-a-message-in-the-console-event-log
+        //
+        it.logger.lifecycle('subproject name = {}', it.name)
+//        it.delete it.file( ".externalNativeBuild" )
+//        it.delete it.file( "gst-android-build" )
+    }
 }
+
+task cleanAll(type: Delete) {
+    description "customized clean task including original clean task"
+    doLast {
+        it.logger.lifecycle('{}:{} doLast() completed', project.name, it.name)
+    }
+}
+cleanAll.dependsOn clean

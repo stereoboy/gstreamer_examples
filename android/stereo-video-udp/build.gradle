@@ -71,3 +71,40 @@ dependencies {
     testImplementation 'junit:junit:4.12'
     implementation 'com.android.support:appcompat-v7:23.1.1'
 }
+
+//
+// reference: Oculus VR Sample App
+//
+task( "cleanWorkAround" ) {
+    project.logger.lifecycle('{}:cleanWorkAround() defined', project.name)
+    description "Workaround for '.externalNativeBuild', 'gst-android-build' not being deleted on clean"
+
+    doFirst {
+        project.logger.lifecycle('{}:cleanWorkAround doFirst', project.name)
+    }
+
+    doLast {
+        project.delete project.file( ".externalNativeBuild" )
+        project.delete project.file( "gst-android-build" )
+        project.logger.lifecycle('{}:cleanWorkAround doLast completed', project.name)
+    }
+}
+// WORKAROUND: On Mac OS X, running ndk-build clean with a high num of parallel executions
+// set may result in the following build error:  rm: fts_read: No such file or directory.
+// Currently, there isn't a good way to specify numProcs=1 only on clean. So, in order
+// to work around the issue, delete the auto-generated .externalNativeBuild artifacts
+// (where $numProcs specified) before executing the clean task.
+//project.clean.dependsOn cleanWorkAround
+//project.cleanall.dependsOn cleanWorkAround
+//cleanWorkAround.dependsOn project.clean
+
+task cleanAll {
+    description "customized clean task including original clean task"
+
+    doLast {
+        project.delete project.file( ".externalNativeBuild" )
+        project.delete project.file( "gst-android-build" )
+        it.logger.lifecycle('{}:{} doLast() completed', project.name, it.name)
+    }
+}
+project.cleanAll.dependsOn project.clean

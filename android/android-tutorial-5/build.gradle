@@ -71,3 +71,14 @@ dependencies {
     testImplementation 'junit:junit:4.12'
     implementation 'com.android.support:appcompat-v7:23.1.1'
 }
+
+task cleanAll {
+    description "customized clean task including original clean task"
+
+    doLast {
+        project.delete project.file( ".externalNativeBuild" )
+        project.delete project.file( "gst-android-build" )
+        it.logger.lifecycle('{}:{} doLast() completed', project.name, it.name)
+    }
+}
+project.cleanAll.dependsOn project.clean

@@ -4,14 +4,26 @@ buildscript {
     repositories {
         jcenter()
         google()
+        //
+        // references
+        //      -   https://stackoverflow.com/questions/10422054/is-there-a-way-to-list-task-dependencies-in-gradle
+        //      -   https://plugins.gradle.org/plugin/com.dorongold.task-tree/1.5
+        //
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:3.1.4'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
+
+        classpath "gradle.plugin.com.dorongold.plugins:task-tree:1.5"
     }
 }
+
+apply plugin: "com.dorongold.task-tree"
 
 allprojects {
     repositories {

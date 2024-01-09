@@ -3,15 +3,17 @@ import time
 
 def display_webcam_with_fps():
     # Open the webcam (0 represents the default camera, you can change it based on your setup)
-    cap = cv2.VideoCapture(4)
+    cap = cv2.VideoCapture(0)
 
-    actual_rate = cap.get(cv2.CAP_PROP_FPS)
-    print("actual_rate={}".format(actual_rate))
-    target_frame_rate=10
-    cap.set(cv2.CAP_PROP_FPS, target_frame_rate)
     if not cap.isOpened():
         print("Error: Could not open webcam.")
         return
+    current_frame_rate = cap.get(cv2.CAP_PROP_FPS)
+    print("current frame rate={}".format(current_frame_rate))
+    target_frame_rate=30
+    cap.set(cv2.CAP_PROP_FPS, target_frame_rate)
+    current_frame_rate = cap.get(cv2.CAP_PROP_FPS)
+    print("current frame rate={}".format(current_frame_rate))
 
     # Initialize variables for FPS calculation
     start_time = time.time()

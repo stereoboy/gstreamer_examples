@@ -11,6 +11,15 @@ DEVICE1=/dev/video2
 WIDTH=1280
 HEIGHT=720
 FRAMERATE=30/1
+#
+# references
+#   - https://stackoverflow.com/questions/56323756/gstreamer-error-when-streaming-side-by-side-720p
+#   - https://www.rfc-editor.org/rfc/rfc2435
+#     - The maximum width is 2040 pixels
+#     - The maximum height is 2040 pixels.
+#
+#WIDTH=1920
+#HEIGHT=1080
 
 gst-launch-1.0 -tv -e \
     compositor name=comp sink_1::ypos=${HEIGHT} ! video/x-raw ! tee name=t \

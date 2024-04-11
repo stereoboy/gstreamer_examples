@@ -1,5 +1,7 @@
 FROM ubuntu:22.04
 
+ENV DEBIAN_FRONTEND noninteractive
+
 COPY ./.tmux.conf /root
 RUN apt-get update
 RUN apt-get install -y apt-utils
@@ -32,3 +34,12 @@ RUN apt-get install -y gstreamer1.0-pulseaudio
 RUN apt-get install -y libcairo2-dev libxt-dev libgirepository1.0-dev
 RUN apt-get install -y python3-pip
 RUN python3 -m pip install pycairo PyGObject
+
+###########################################################
+# Gst Python3 + WEBRTC
+RUN python3 -m pip install websockets
+RUN apt-get install -y libgstreamer-plugins-bad1.0-dev # for sendonly example
+RUN apt-get install -y libsoup2.4-dev # for sendonly example
+RUN apt-get install -y libjson-glib-dev # for sendonly example
+RUN apt-get install -y gir1.2-gst-plugins-bad-1.0 # GObject Introspection Repositories
+RUN apt-get install -y gstreamer1.0-nice

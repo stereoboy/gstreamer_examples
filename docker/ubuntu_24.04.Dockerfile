@@ -32,8 +32,8 @@ RUN apt-get install -y gstreamer1.0-pulseaudio
 ###########################################################
 # Gst Python3
 RUN apt-get install -y libcairo2-dev libxt-dev libgirepository1.0-dev
-RUN mv /usr/lib/python3.11/EXTERNALLY-MANAGED /usr/lib/python3.11/EXTERNALLY-MANAGED.old
 RUN apt-get install -y python3-pip
+RUN mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.old
 RUN python3 -m pip install pycairo PyGObject
 
 ###########################################################

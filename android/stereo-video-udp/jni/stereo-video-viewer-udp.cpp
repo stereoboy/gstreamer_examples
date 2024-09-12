@@ -488,8 +488,8 @@ app_function (void *userdata)
 
   /* Build pipeline */
   gchar *launch_str[ID_MAX] = {
-          "udpsrc port=5000 buffer-size=2764800 caps=application/x-rtp,media=video,encoding-name=JPEG ! rtpjpegdepay !  queue ! jpegparse ! jpegdec ! textoverlay text=\"remote left\" ! autovideosink",
-          "udpsrc port=5001 buffer-size=2764800 caps=application/x-rtp,media=video,encoding-name=JPEG ! rtpjpegdepay !  queue ! jpegparse ! jpegdec ! textoverlay text=\"remote right\" ! autovideosink"
+          (gchar *)"udpsrc port=5000 buffer-size=6220800 caps=application/x-rtp,media=video,encoding-name=JPEG ! rtpjpegdepay ! queue ! jpegparse ! jpegdec ! textoverlay text=\"remote left\" ! videoconvert ! video/x-raw,format=(string)RGB ! videoconvert ! autovideosink",
+          (gchar *)"udpsrc port=5001 buffer-size=6220800 caps=application/x-rtp,media=video,encoding-name=JPEG ! rtpjpegdepay ! queue ! jpegparse ! jpegdec ! textoverlay text=\"remote right\" ! videoconvert ! video/x-raw,format=(string)RGB ! videoconvert ! autovideosink"
   };
   for (unsigned int i = 0; i < ID_MAX; i++) {
     data->pipeline_array[i].pipeline =
